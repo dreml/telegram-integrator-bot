@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/joho/godotenv"
 	"gopkg.in/gomail.v2"
 )
 
@@ -16,6 +17,12 @@ const (
 	ToDoTopicId        = 3
 	ReadingListTopicId = 7
 )
+
+func init() {
+	if err := godotenv.Load(); err != nil {
+		fmt.Println("No .env file found")
+	}
+}
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
