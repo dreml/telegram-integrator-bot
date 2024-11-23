@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"slices"
@@ -18,9 +18,11 @@ const (
 	ReadingListTopicId = 7
 )
 
+var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
 func init() {
 	if err := godotenv.Load(); err != nil {
-		fmt.Println("No .env file found")
+		logger.Error("No .env file found")
 	}
 }
 
@@ -68,10 +70,10 @@ func sendEmail(subject, text string) {
 	pass := os.Getenv("EMAIL_SERVER_PASSWORD")
 	d := gomail.NewDialer(smtpHost, smtpPort, from, pass)
 	if err := d.DialAndSend(m); err != nil {
-		fmt.Println("Ошибка отправки:", err)
+		logger.Error("Ошибка отправки:", "error", err.Error())
 		return
 	}
-	fmt.Println("Письмо успешно отправлено!")
+	logger.Info("Письмо успешно отправлено!")
 }
 
 func handler(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -89,7 +91,7 @@ func handler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		handleReadingListMessage(ctx, b, update.Message)
 	}
 
-	fmt.Println("Received message " + update.Message.Text)
+	logger.Info("Received message", "message", update.Message.Text)
 }
 
 func sendReaction(ctx context.Context, b *bot.Bot, message *models.Message, reaction string) {
