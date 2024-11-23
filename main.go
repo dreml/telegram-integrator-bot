@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -50,7 +49,8 @@ func main() {
 }
 
 func handleToDoMessage(ctx context.Context, b *bot.Bot, message *models.Message) {
-	sendEmail(message.Text, "")
+	todo, description := splitToDo(message.Text)
+	sendEmail(todo, description)
 	sendReaction(ctx, b, message, "👍")
 }
 
@@ -64,13 +64,17 @@ func handleReadingListMessage(ctx context.Context, b *bot.Bot, message *models.M
 		if title == "" || err != nil {
 			title = "Посмотреть"
 		}
-		fmt.Println(title)
 	} else {
 		title = "Прочитать"
 	}
 
 	sendEmail(title, message.Text)
 	sendReaction(ctx, b, message, "👍")
+}
+
+func splitToDo(message string) (string, string) {
+	lines := strings.Split(message, "\n")
+	return strings.TrimSpace(lines[0]), strings.Join(lines[1:], "\n")
 }
 
 func isURL(str string) bool {
