@@ -49,6 +49,12 @@ func handleToDoMessage(ctx context.Context, b *bot.Bot, message *models.Message)
 }
 
 func handleReadingListMessage(ctx context.Context, b *bot.Bot, message *models.Message) {
+	// 1. проверить ссылка или нет
+	// 2. если ссылка
+	// 2.1. сфетчить тайтл ссылки
+	// 2.2. отправить письмо. тема письма - тайтл ссылки, тело - сама ссылка
+	// 3. если текст
+	// 3.1. отправить письмо. тема письма - прочитать, тело - текст сообщения
 }
 
 func sendEmail(subject, text string) {
