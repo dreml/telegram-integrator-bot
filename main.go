@@ -2,20 +2,26 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"slices"
+	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/joho/godotenv"
+	"golang.org/x/net/html"
 	"gopkg.in/gomail.v2"
 )
 
 const (
 	ToDoTopicId        = 3
-	ReadingListTopicId = 7
+	ReadingListTopicId = 229
 )
 
 var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -49,23 +55,59 @@ func handleToDoMessage(ctx context.Context, b *bot.Bot, message *models.Message)
 }
 
 func handleReadingListMessage(ctx context.Context, b *bot.Bot, message *models.Message) {
-	// 1. проверить ссылка или нет
-	// 2. если ссылка
-	// 2.1. сфетчить тайтл ссылки
-	// 2.2. отправить письмо. тема письма - тайтл ссылки, тело - сама ссылка
-	// 3. если текст
-	// 3.1. отправить письмо. тема письма - прочитать, тело - текст сообщения
+	var title string
+	var err error
+
+	if isURL(message.Text) {
+		title, err = fetchTitle(message.Text)
+		logger.Info("link", "title", title)
+		if title == "" || err != nil {
+			title = "Посмотреть"
+		}
+		fmt.Println(title)
+	} else {
+		title = "Прочитать"
+	}
+
+	sendEmail(title, message.Text)
+	sendReaction(ctx, b, message, "👍")
+}
+
+func isURL(str string) bool {
+	u, err := url.Parse(str)
+	return err == nil && u.Scheme != "" && u.Host != ""
+}
+
+func fetchTitle(url string) (string, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	z := html.NewTokenizer(resp.Body)
+	for {
+		tt := z.Next()
+
+		switch tt {
+		case html.ErrorToken:
+			return "", errors.New("Заголовок не найден")
+		case html.StartTagToken:
+			t := z.Token()
+			if t.Data == "title" {
+				z.Next()
+				return strings.TrimSpace(z.Token().Data), nil
+			}
+		}
+	}
 }
 
 func sendEmail(subject, text string) {
-	from := os.Getenv("SENDER_EMAIL")
-
-	// Данные получателя
-	to := os.Getenv("THINGS_EMAIL")
-
-	// SMTP-сервер и порт Gmail
 	smtpHost := "smtp.yandex.ru"
 	smtpPort := 587
+
+	from := os.Getenv("SENDER_EMAIL")
+	to := os.Getenv("THINGS_EMAIL")
 
 	m := gomail.NewMessage()
 	m.SetHeader("From", from)
@@ -85,10 +127,13 @@ func sendEmail(subject, text string) {
 func handler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	handledTopicIds := []int{ToDoTopicId, ReadingListTopicId}
 	topicId := update.Message.MessageThreadID
+
 	found := slices.Contains(handledTopicIds, topicId)
-	if !found {
+	if !found || update.Message.Text == "" {
 		return
 	}
+
+	logger.Info("Received message", "topicId", topicId, "message", update.Message.Text)
 
 	switch topicId {
 	case ToDoTopicId:
@@ -96,8 +141,6 @@ func handler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	case ReadingListTopicId:
 		handleReadingListMessage(ctx, b, update.Message)
 	}
-
-	logger.Info("Received message", "message", update.Message.Text)
 }
 
 func sendReaction(ctx context.Context, b *bot.Bot, message *models.Message, reaction string) {
@@ -111,4 +154,8 @@ func sendReaction(ctx context.Context, b *bot.Bot, message *models.Message, reac
 			},
 		},
 	})
+}
+
+func DeleteMessage(ctx context.Context, b *bot.Bot, message *models.Message, reaction string) {
+	b.DeleteMessage(ctx, &bot.DeleteMessageParams{ChatID: message.Chat.ID, MessageID: message.ID})
 }
